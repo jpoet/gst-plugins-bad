@@ -28,7 +28,8 @@ libgstdecklink_la_SOURCES = \
 	gstdecklinkaudiosink.cpp \
 	gstdecklinkvideosink.cpp \
 	gstdecklinkaudiosrc.cpp \
-	gstdecklinkvideosrc.cpp
+	gstdecklinkvideosrc.cpp \
+	gstsdivanc.cpp
 
 if DECKLINK_OSX
 libgstdecklink_la_SOURCES += \
@@ -44,6 +45,7 @@ noinst_HEADERS = \
 	gstdecklinkvideosink.h \
 	gstdecklinkaudiosrc.h \
 	gstdecklinkvideosrc.h \
+	gstsdivanc.h \
 	linux/DeckLinkAPIConfiguration.h \
 	linux/DeckLinkAPIDeckControl.h \
 	linux/DeckLinkAPIDiscovery.h \
@@ -65,5 +67,3 @@ EXTRA_DIST = \
 	linux/DeckLinkAPIDispatch.cpp \
 	osx/DeckLinkAPIDispatch.cpp \
 	win/DeckLinkAPIDispatch.cpp
-
-

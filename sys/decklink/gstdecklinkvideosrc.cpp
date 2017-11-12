@@ -23,7 +23,9 @@
 #include "config.h"
 #endif
 
+#include <gst/video/gstvideometa.h>
 #include "gstdecklinkvideosrc.h"
+#include "gstsdivanc.h"
 #include <string.h>
 
 GST_DEBUG_CATEGORY_STATIC (gst_decklink_video_src_debug);
@@ -48,7 +50,8 @@ enum
   PROP_OUTPUT_STREAM_TIME,
   PROP_SKIP_FIRST_TIME,
   PROP_DROP_NO_SIGNAL_FRAMES,
-  PROP_SIGNAL
+  PROP_SIGNAL,
+  PROP_ENABLE_VANC
 };
 
 typedef struct
@@ -207,6 +210,12 @@ gst_decklink_video_src_class_init (GstDecklinkVideoSrcClass * klass)
           "True if there is a valid input signal available",
           FALSE, (GParamFlags) (G_PARAM_READABLE | G_PARAM_STATIC_STRINGS)));
 
+  g_object_class_install_property (gobject_class, PROP_ENABLE_VANC,
+      g_param_spec_boolean ("enable-vanc", "Enable VANC processing",
+                            "Create VANC metatdata", FALSE,
+                      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+                                     G_PARAM_CONSTRUCT)));
+
   templ_caps = gst_decklink_mode_get_template_caps (TRUE);
   gst_element_class_add_pad_template (element_class,
       gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS, templ_caps));
@@ -218,6 +227,8 @@ gst_decklink_video_src_class_init (GstDecklinkVideoSrcClass * klass)
 
   GST_DEBUG_CATEGORY_INIT (gst_decklink_video_src_debug, "decklinkvideosrc",
       0, "debug category for decklinkvideosrc element");
+
+  gst_processVANC_init_log();
 }
 
 static void
@@ -235,6 +246,7 @@ gst_decklink_video_src_init (GstDecklinkVideoSrc * self)
   self->output_stream_time = DEFAULT_OUTPUT_STREAM_TIME;
   self->skip_first_time = DEFAULT_SKIP_FIRST_TIME;
   self->drop_no_signal_frames = DEFAULT_DROP_NO_SIGNAL_FRAMES;
+  self->enable_vanc = FALSE;
 
   self->window_size = 64;
   self->times = g_new (GstClockTime, 4 * self->window_size);
@@ -311,6 +323,9 @@ gst_decklink_video_src_set_property (GObject * object, guint property_id,
     case PROP_DROP_NO_SIGNAL_FRAMES:
       self->drop_no_signal_frames = g_value_get_boolean (value);
       break;
+    case PROP_ENABLE_VANC:
+      self->enable_vanc = g_value_get_boolean(value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -354,6 +369,9 @@ gst_decklink_video_src_get_property (GObject * object, guint property_id,
       break;
     case PROP_SIGNAL:
       g_value_set_boolean (value, !self->no_signal);
+      break;
+    case PROP_ENABLE_VANC:
+      g_value_set_boolean (value, self->enable_vanc);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -845,6 +863,23 @@ gst_decklink_video_src_create (GstPushSrc * bsrc, GstBuffer ** buffer)
   if (mode->interlaced && mode->tff)
     GST_BUFFER_FLAG_SET (*buffer,
         GST_VIDEO_BUFFER_FLAG_TFF | GST_VIDEO_BUFFER_FLAG_INTERLACED);
+
+  if (self->enable_vanc) {
+    if (f.format != bmdFormat10BitYUV) {
+      GST_WARNING_OBJECT (self, "VANC (HD) requires 10bit YUV (v210)");
+    } else {
+      IDeckLinkVideoFrameAncillary  *vanc_frame = NULL;
+
+      if (f.frame->GetAncillaryData(&vanc_frame) == S_OK) {
+        if (!gst_processVANC(self, vanc_frame, f.frame->GetWidth(),
+                             f.frame->GetRowBytes(), *buffer))
+          GST_WARNING_OBJECT (self, "Failed to parse ancillary data.");
+        vanc_frame->Release();
+      } else {
+        GST_WARNING_OBJECT (self, "No Ancillary data available.");
+      }
+    }
+  }
 
   GST_DEBUG_OBJECT (self,
       "Outputting buffer %p with timestamp %" GST_TIME_FORMAT " and duration %"

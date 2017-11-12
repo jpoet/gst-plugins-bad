@@ -70,6 +70,7 @@ struct _GstDecklinkVideoSrc
   gboolean flushing;
   GstQueueArray *current_frames;
   gboolean no_signal;
+  gboolean enable_vanc;
 
   guint buffer_size;
 
