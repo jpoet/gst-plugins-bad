@@ -525,6 +525,8 @@ gst_decklink_audio_src_got_packet (GstElement * element,
           gst_queue_array_pop_head_struct (self->current_packets);
       GST_WARNING_OBJECT (self, "Dropping old packet at %" GST_TIME_FORMAT,
           GST_TIME_ARGS (tmp->timestamp));
+      GST_ELEMENT_WARNING (GST_ELEMENT (self), RESOURCE, WRITE,
+                 ("Dropping audio packet"), ("Dropping audio packet"));
       capture_packet_clear (tmp);
     }
 
